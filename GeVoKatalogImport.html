@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=800, initial-scale=1.0">
+  <title>GeVo‑Katalog Import</title>
+  <style>
+    body {
+      background: #f1f1f1;
+      min-height: 100vh;
+      margin: 0;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    .container {
+      background: #fff;
+      padding: 40px 30px 30px 30px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+      margin: 40px 0;
+      width: 700px;
+      border-radius: 13px;
+      box-sizing: border-box;
+    }
+    h1 {
+      text-align: center;
+      font-size: 2.2rem;
+      margin-bottom: 0.4em;
+      color: #222;
+      letter-spacing: 0.7px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #444;
+      font-size: 1rem;
+      margin-bottom: 2.5rem;
+    }
+    .dropzone {
+      border: 2px dashed #b6b6b6;
+      border-radius: 10px;
+      background: #f7f7f7;
+      padding: 38px 0;
+      text-align: center;
+      color: #232323;
+      font-size: 16px;
+      cursor: pointer;
+      margin-bottom: 10px;
+      transition: border-color .2s, background .2s;
+      outline: none;
+    }
+    .dropzone:focus,
+    .dropzone:hover {
+      border-color: #666;
+      background: #ececec;
+    }
+    .feedback {
+      text-align: center;
+      margin: 10px 0 15px 0;
+      font-size: 14px;
+      min-height: 18px;
+    }
+    .feedback.error {
+      color: #c93828;
+      font-weight: bold;
+    }
+    .feedback.success {
+      color: #258a42;
+      font-weight: bold;
+    }
+    .form-group {
+      margin-bottom: 30px;
+    }
+    label {
+      display: block;
+      color: #232323;
+      font-weight: 500;
+      margin-bottom: 4px;
+      font-size: 15px;
+    }
+    input[type="text"],
+    textarea {
+      width: 100%;
+      padding: 7px 11px;
+      font-size: 15px;
+      border: 2px solid #b6b6b6;
+      border-radius: 6px;
+      color: #232323;
+      outline: none;
+      background: transparent;
+      transition: border-color 0.18s;
+      box-sizing: border-box;
+    }
+    input[type="text"]:focus,
+    textarea:focus {
+      border-color: #5a5a5a;
+    }
+    .checkbox-group {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 24px;
+    }
+    .checkbox-group input {
+      margin-right: 12px;
+      width: 20px;
+      height: 20px;
+      accent-color: #232323; /* Modern browser */
+    }
+    .cb-label {
+      font-size: 15px;
+      color: #232323;
+      line-height: 1.2;
+      padding-top: 1px;
+    }
+    .submit-btn {
+      display: block;
+      width: 220px;
+      margin: 0 auto 15px auto;
+      padding: 12px 0;
+      background: #a3a3a3;
+      color: #fff;
+      font-size: 18px;
+      border: none;
+      border-radius: 7px;
+      box-shadow: none;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .submit-btn:hover,
+    .submit-btn:focus {
+      background: #818181;
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>GeVo‑Katalog Import</h1>
+    <div class="subtitle" id="desc">
+      Excel-Datei (.xlsx) hochladen und in die GMS-Datenbank (Schema gms) importieren.
+    </div>
+    <form id="importForm" autocomplete="off" tabindex="-1" aria-describedby="desc">
+      <div 
+        id="dropzone" 
+        class="dropzone" 
+        tabindex="0"
+        aria-label="Excel-Datei hochladen oder perul ziehen"
+      >
+        Klicken oder Datei hierher ziehen (.xlsx)
+      </div>
+      <div class="feedback error" id="errorMsg" role="alert" aria-live="polite" style="display:none;"></div>
+      <div class="form-group">
+        <label for="fachbereich">Fachbereich</label>
+        <input type="text" id="fachbereich" name="fachbereich" tabindex="1" placeholder="Import" value="Import" required>
+      </div>
+      <div class="form-group">
+        <label for="beschreibung">Fachliche Beschreibung</label>
+        <input type="text" id="beschreibung" name="beschreibung" tabindex="2" placeholder="Excel-Import" value="Excel-Import" required>
+      </div>
+      <div class="form-group" style="max-width: 120px;">
+        <label for="version">Version</label>
+        <input type="text" id="version" name="version" tabindex="3" placeholder="1.0" value="1.0" required>
+      </div>
+      <div class="checkbox-group">
+        <input type="checkbox" id="eigeneDB" name="eigeneDB" tabindex="4" aria-checked="false">
+        <span class="cb-label" id="dblabel">Eigene DB-Verbindung (ansonsten Konfiguration aus Umgebung)</span>
+      </div>
+      <button type="submit" class="submit-btn" id="importBtn" tabindex="5">Import starten</button>
+      <div class="feedback success" id="successMsg" role="status" aria-live="polite" style="display:none;">✔️ Import erfolgreich abgeschlossen</div>
+    </form>
+  </main>
+  <input type="file" id="fileInput" accept=".xlsx" style="display:none;">
+  <script>
+    // Accessibility and UX Details
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const errorMsg = document.getElementById('errorMsg');
+    const successMsg = document.getElementById('successMsg');
+    const form = document.getElementById('importForm');
+
+    let file = null;
+
+    function showError(msg) {
+      errorMsg.textContent = '❗ ' + msg;
+      errorMsg.style.display = 'block';
+      successMsg.style.display = 'none';
+    }
+    function clearError() {
+      errorMsg.textContent = '';
+      errorMsg.style.display = 'none';
+    }
+    function showSuccess(msg) {
+      successMsg.textContent = '✔️ ' + msg;
+      successMsg.style.display = 'block';
+      errorMsg.style.display = 'none';
+    }
+    function clearSuccess() {
+      successMsg.style.display = 'none';
+      successMsg.textContent = '';
+    }
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { fileInput.click(); }
+    });
+    dropzone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropzone.style.background = '#e6e6e6';
+      dropzone.style.borderColor = '#666';
+    });
+    dropzone.addEventListener('dragleave', e => {
+      dropzone.style.background = '#f7f7f7';
+      dropzone.style.borderColor = '#b6b6b6';
+    });
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropzone.style.background = '#f7f7f7';
+      dropzone.style.borderColor = '#b6b6b6';
+      const dtFile = e.dataTransfer.files[0];
+      if (dtFile && dtFile.name.endsWith('.xlsx')) {
+        file = dtFile;
+        clearError();
+        dropzone.textContent = dtFile.name;
+      } else {
+        file = null;
+        showError('Bitte gültige .xlsx-Datei auswählen');
+        dropzone.textContent = 'Klicken oder Datei hierher ziehen (.xlsx)';
+      }
+    });
+    fileInput.addEventListener('change', e => {
+      const userFile = e.target.files[0];
+      if (userFile && userFile.name.endsWith('.xlsx')) {
+        file = userFile;
+        clearError();
+        dropzone.textContent = userFile.name;
+      } else {
+        file = null;
+        showError('Bitte gültige .xlsx-Datei auswählen');
+        dropzone.textContent = 'Klicken oder Datei hierher ziehen (.xlsx)';
+      }
+    });
+    form.addEventListener('submit', async function(ev) {
+      ev.preventDefault();
+      clearError();
+      clearSuccess();
+      if (!file) {
+        showError('Bitte eine .xlsx-Datei auswählen.');
+        return;
+      }
+      // Form Input Validation
+      const fachbereich = form.fachbereich.value.trim();
+      const beschreibung = form.beschreibung.value.trim();
+      const version = form.version.value.trim();
+      if (!fachbereich || !beschreibung || !version) {
+        showError('Bitte alle Felder ausfüllen.');
+        return;
+      }
+
+      // Simuliere den "Erfolg" für das App-Design
+      setTimeout(() => {
+        showSuccess('Import erfolgreich abgeschlossen');
+        form.reset();
+        file = null;
+        dropzone.textContent = 'Klicken oder Datei hierher ziehen (.xlsx)';
+      }, 900);
+    });
+  </script>
+</body>
+</html>
